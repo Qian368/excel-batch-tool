@@ -1,0 +1,45 @@
+# Python编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 打包文件
+build/
+dist/
+*.egg-info/
+*.egg
+
+# PyInstaller生成的文件
+*.manifest
+# *.spec  # 保留spec文件，它是项目的重要配置
+
+# 日志文件
+*.log
+
+# 本地环境文件
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE配置文件
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 编译输出目录
+upx_output/
+
+# 安装程序文件
+*.exe
+*.msi
+*.msix
+*.msm
+*.msp
+*.iss
