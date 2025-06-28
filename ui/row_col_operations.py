@@ -70,6 +70,10 @@ class RowColOperationsMixin:
             return 'unhide_rows'
         elif self.unhide_cols_radio.isChecked():
             return 'unhide_columns'
+        elif self.delete_hidden_rows_radio.isChecked():
+            return 'delete_hidden_rows'
+        elif self.delete_hidden_cols_radio.isChecked():
+            return 'delete_hidden_columns'
         return None
     
     def set_operation_radio(self, operation):
@@ -90,6 +94,10 @@ class RowColOperationsMixin:
             self.unhide_rows_radio.setChecked(True)
         elif operation == 'unhide_columns':
             self.unhide_cols_radio.setChecked(True)
+        elif operation == 'delete_hidden_rows':
+            self.delete_hidden_rows_radio.setChecked(True)
+        elif operation == 'delete_hidden_columns':
+            self.delete_hidden_cols_radio.setChecked(True)
     
     def add_row_col_step(self):
         """添加行列操作步骤"""
@@ -97,31 +105,39 @@ class RowColOperationsMixin:
             operation = self.get_current_operation()
             position = self.position_edit.text().strip()
             
-            if not position:
+            # 删除隐藏行列操作不需要位置参数
+            if operation in ['delete_hidden_rows', 'delete_hidden_columns']:
+                position = None  # 这些操作不需要位置参数
+            elif not position:
                 QMessageBox.warning(self, "警告", "请输入位置信息！")
                 return
                 
-            # 验证输入格式
-            is_column_operation = operation in [
-                'insert_columns', 'delete_columns',
-                'hide_columns', 'unhide_columns'
-            ]
-            is_valid, error_msg = self.validate_input(position, is_column_operation)
-            if not is_valid:
-                QMessageBox.warning(self, "输入错误", error_msg)
-                return
-            
-            # 替换中文符号为英文符号
-            position = position.replace('，', ',').replace('：', ':')
+            # 验证输入格式（删除隐藏行列操作不需要验证）
+            if operation not in ['delete_hidden_rows', 'delete_hidden_columns']:
+                is_column_operation = operation in [
+                    'insert_columns', 'delete_columns',
+                    'hide_columns', 'unhide_columns'
+                ]
+                is_valid, error_msg = self.validate_input(position, is_column_operation)
+                if not is_valid:
+                    QMessageBox.warning(self, "输入错误", error_msg)
+                    return
+                
+                # 替换中文符号为英文符号
+                position = position.replace('，', ',').replace('：', ':')
             
             # 添加步骤
             params = {
                 'operation': operation,
-                'position': position,
                 'sheet_indexes': [0]  # 默认处理第一个工作表
             }
+            
+            # 只有需要位置参数的操作才添加position
+            if operation not in ['delete_hidden_rows', 'delete_hidden_columns']:
+                params['position'] = position
+            
             # 如果是删除操作，添加合并单元格处理模式
-            if operation in ['delete_rows', 'delete_columns']:
+            if operation in ['delete_rows', 'delete_columns', 'delete_hidden_rows', 'delete_hidden_columns']:
                 if self.delete_merge_ignore_radio.isChecked():
                     params['merge_mode'] = 'ignore'
                 elif self.delete_merge_unmerge_only_radio.isChecked():
@@ -144,31 +160,39 @@ class RowColOperationsMixin:
             operation = self.get_current_operation()
             position = self.position_edit.text().strip()
             
-            if not position:
+            # 删除隐藏行列操作不需要位置参数
+            if operation in ['delete_hidden_rows', 'delete_hidden_columns']:
+                position = None  # 这些操作不需要位置参数
+            elif not position:
                 QMessageBox.warning(self, "警告", "请输入位置信息！")
                 return
                 
-            # 验证输入格式
-            is_column_operation = operation in [
-                'insert_columns', 'delete_columns',
-                'hide_columns', 'unhide_columns'
-            ]
-            is_valid, error_msg = self.validate_input(position, is_column_operation)
-            if not is_valid:
-                QMessageBox.warning(self, "输入错误", error_msg)
-                return
-            
-            # 替换中文符号为英文符号
-            position = position.replace('，', ',').replace('：', ':')
+            # 验证输入格式（删除隐藏行列操作不需要验证）
+            if operation not in ['delete_hidden_rows', 'delete_hidden_columns']:
+                is_column_operation = operation in [
+                    'insert_columns', 'delete_columns',
+                    'hide_columns', 'unhide_columns'
+                ]
+                is_valid, error_msg = self.validate_input(position, is_column_operation)
+                if not is_valid:
+                    QMessageBox.warning(self, "输入错误", error_msg)
+                    return
+                
+                # 替换中文符号为英文符号
+                position = position.replace('，', ',').replace('：', ':')
             
             # 插入步骤
             params = {
                 'operation': operation,
-                'position': position,
                 'sheet_indexes': [0]  # 默认处理第一个工作表
             }
+            
+            # 只有需要位置参数的操作才添加position
+            if operation not in ['delete_hidden_rows', 'delete_hidden_columns']:
+                params['position'] = position
+            
             # 如果是删除操作，添加合并单元格处理模式
-            if operation in ['delete_rows', 'delete_columns']:
+            if operation in ['delete_rows', 'delete_columns', 'delete_hidden_rows', 'delete_hidden_columns']:
                 if self.delete_merge_ignore_radio.isChecked():
                     params['merge_mode'] = 'ignore'
                 elif self.delete_merge_unmerge_only_radio.isChecked():

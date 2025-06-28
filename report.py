@@ -23,6 +23,45 @@ def generate_report(step_results, output_dir, file_name="执行报告.xlsx"):
         file_name: 报告文件名
         
     Returns:
+        str: 报告文件路径或报告文件路径列表（当处理多个文件时）
+    """
+    # 检查是否有文件信息，如果有，则为每个文件生成单独的报告
+    file_paths = set()
+    for result in step_results:
+        if 'file_path' in result:
+            file_paths.add(result['file_path'])
+    
+    # 如果没有文件信息或只有一个文件，生成单个报告
+    if not file_paths or len(file_paths) == 1:
+        return _generate_single_report(step_results, output_dir, file_name)
+    else:
+        # 为每个文件生成单独的报告
+        report_paths = []
+        for file_path in file_paths:
+            # 获取文件名作为报告名称的一部分
+            file_name_base = os.path.basename(file_path)
+            report_file_name = f"执行报告_{file_name_base}.xlsx"
+            
+            # 筛选该文件的步骤结果
+            file_results = [result for result in step_results if result.get('file_path') == file_path]
+            
+            # 生成该文件的报告
+            report_path = _generate_single_report(file_results, output_dir, report_file_name)
+            report_paths.append(report_path)
+        
+        return report_paths
+
+
+def _generate_single_report(step_results, output_dir, file_name="执行报告.xlsx"):
+    """
+    生成单个Excel格式的执行报告
+    
+    Args:
+        step_results: 步骤执行结果列表
+        output_dir: 输出目录
+        file_name: 报告文件名
+        
+    Returns:
         str: 报告文件路径
     """
     # 创建工作簿和工作表
@@ -42,10 +81,12 @@ def generate_report(step_results, output_dir, file_name="执行报告.xlsx"):
         "delete_rows": "删除行",
         "hide_rows": "隐藏行",
         "unhide_rows": "取消隐藏行",
+        "delete_hidden_rows": "删除隐藏行",
         "insert_columns": "插入列",
         "delete_columns": "删除列",
         "hide_columns": "隐藏列",
-        "unhide_columns": "取消隐藏列"
+        "unhide_columns": "取消隐藏列",
+        "delete_hidden_columns": "删除隐藏列"
     }
     
     # 设置列宽
@@ -74,12 +115,16 @@ def generate_report(step_results, output_dir, file_name="执行报告.xlsx"):
         # 步骤编号
         ws.cell(row=row, column=1, value=result['step']).alignment = Alignment(horizontal="center")
         
-        # 操作类型 - 显示中文名称
+        # 操作类型 - 显示完整的操作描述（包括位置信息等）
         operation_name = result['operation']
-        # 如果操作名在映射表中，则使用中文名称
-        if operation_name in operation_name_map:
-            operation_name = operation_name_map[operation_name]
-        ws.cell(row=row, column=2, value=operation_name)
+        operation_params = result.get('params', {})
+        
+        # 创建一个临时的StepItem对象来获取完整描述
+        from models import StepItem
+        temp_step = StepItem(operation_name, operation_params)
+        operation_desc = str(temp_step)
+        
+        ws.cell(row=row, column=2, value=operation_desc)
         
         # 执行结果
         success_cell = ws.cell(row=row, column=3, value="成功" if result['success'] else "失败")

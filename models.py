@@ -22,10 +22,18 @@ class StepItem:
             'delete_rows': '删除行',
             'hide_rows': '隐藏行',
             'unhide_rows': '取消隐藏行',
+            'delete_hidden_rows': '删除隐藏行',
             'insert_columns': '插入列',
             'delete_columns': '删除列',
             'hide_columns': '隐藏列',
-            'unhide_columns': '取消隐藏列'
+            'unhide_columns': '取消隐藏列',
+            'delete_hidden_columns': '删除隐藏列',
+            # 单元格格式操作
+            'change_font_color': '修改字体颜色',
+            'change_fill_color': '修改填充颜色',
+            'add_border': '添加单元格边框',
+            'remove_border': '移除单元格边框',
+            'modify_cell_content': '修改单元格内容'
         }
         
     def __init__(self, operation, params):
@@ -55,12 +63,27 @@ class StepItem:
                 params_desc.append(f'单元格：{range_str}')
             if 'sheet_name' in self.params:
                 params_desc.append(f'工作表：{self.params["sheet_name"]}')
+            if 'color' in self.params:
+                params_desc.append(f'颜色：{self.params["color"]}')
+            # 移除range_mode信息，因为单元格范围信息已经在其他地方显示
             if 'position' in self.params:
                 # 将中文符号转换为英文符号
                 position = self.params["position"].replace('，', ',').replace('：', ':')
-                params_desc.append(f'位置：{position}')
+                # 根据操作类型显示正确的标签
+                if self.operation in ['insert_rows', 'delete_rows']:
+                    params_desc.append(f'行：{position}')
+                elif self.operation in ['insert_columns', 'delete_columns']:
+                    params_desc.append(f'列：{position}')
+                else:
+                    params_desc.append(f'单元格：{position}')
+            if 'content' in self.params:
+                # 添加内容信息，但限制长度以避免显示过长
+                content = self.params["content"]
+                if len(content) > 20:  # 如果内容太长，截断显示
+                    content = content[:17] + "..."
+                params_desc.append(f'内容：{content}')
             # 添加对删除行列操作中合并单元格处理模式的描述
-            if self.operation in ['delete_rows', 'delete_columns'] and 'merge_mode' in self.params:
+            if self.operation in ['delete_rows', 'delete_columns', 'delete_hidden_rows', 'delete_hidden_columns'] and 'merge_mode' in self.params:
                 merge_mode_desc = {
                     'ignore': '不处理',
                     'unmerge_only': '仅拆分',

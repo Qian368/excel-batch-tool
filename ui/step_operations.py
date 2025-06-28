@@ -354,6 +354,78 @@ class StepOperationsMixin:
                         self.delete_merge_unmerge_only_radio.setChecked(True)
                     elif merge_mode == 'unmerge_keep_value' and hasattr(self, 'delete_merge_unmerge_keep_value_radio'):
                         self.delete_merge_unmerge_keep_value_radio.setChecked(True)
+            elif operation == 'change_font_color' or operation.startswith('修改字体颜色'):
+                # 字体颜色操作，切换到字体颜色选项卡
+                self.tab_widget.setCurrentIndex(4)  # 假设字体颜色是第5个选项卡
+                
+                # 设置颜色
+                if 'color' in params and hasattr(self, 'font_color_combo'):
+                    color_index = self.font_color_combo.findText(params['color'])
+                    if color_index >= 0:
+                        self.font_color_combo.setCurrentIndex(color_index)
+                
+                # 设置范围模式
+                range_mode = params.get('range_mode', 'specific')
+                if range_mode == 'entire_sheet' and hasattr(self, 'font_entire_sheet_radio'):
+                    self.font_entire_sheet_radio.setChecked(True)
+                elif hasattr(self, 'font_specific_radio'):
+                    self.font_specific_radio.setChecked(True)
+                
+                # 填充单元格范围
+                if range_mode == 'specific' and 'range_str' in params and hasattr(self, 'font_range_edit'):
+                    self.font_range_edit.setText(params['range_str'])
+                    self.font_range_edit.setFocus()
+                    
+            elif operation == 'change_fill_color' or operation.startswith('修改填充颜色'):
+                # 填充颜色操作，切换到填充颜色选项卡
+                self.tab_widget.setCurrentIndex(5)  # 假设填充颜色是第6个选项卡
+                
+                # 设置颜色
+                if 'color' in params and hasattr(self, 'fill_color_combo'):
+                    color_index = self.fill_color_combo.findText(params['color'])
+                    if color_index >= 0:
+                        self.fill_color_combo.setCurrentIndex(color_index)
+                
+                # 设置范围模式
+                range_mode = params.get('range_mode', 'specific')
+                if range_mode == 'entire_sheet' and hasattr(self, 'fill_entire_sheet_radio'):
+                    self.fill_entire_sheet_radio.setChecked(True)
+                elif hasattr(self, 'fill_specific_radio'):
+                    self.fill_specific_radio.setChecked(True)
+                
+                # 填充单元格范围
+                if range_mode == 'specific' and 'range_str' in params and hasattr(self, 'fill_range_edit'):
+                    self.fill_range_edit.setText(params['range_str'])
+                    self.fill_range_edit.setFocus()
+                    
+            elif operation == 'add_border' or operation == 'remove_border' or operation.startswith('添加单元格边框') or operation.startswith('移除单元格边框'):
+                # 边框操作，切换到边框选项卡
+                self.tab_widget.setCurrentIndex(6)  # 假设边框是第7个选项卡
+                
+                # 设置边框模式
+                if (operation == 'add_border' or operation.startswith('添加单元格边框')) and hasattr(self, 'add_border_radio'):
+                    self.add_border_radio.setChecked(True)
+                elif hasattr(self, 'remove_border_radio'):
+                    self.remove_border_radio.setChecked(True)
+                
+                # 填充单元格范围
+                if 'range_str' in params and hasattr(self, 'border_range_edit'):
+                    self.border_range_edit.setText(params['range_str'])
+                    self.border_range_edit.setFocus()
+                    
+            elif operation == 'modify_cell_content' or operation.startswith('修改单元格内容'):
+                # 单元格内容修改，切换到单元格内容选项卡
+                self.tab_widget.setCurrentIndex(7)  # 假设单元格内容是第8个选项卡
+                
+                # 填充单元格位置
+                if 'position' in params and hasattr(self, 'cell_position_edit'):
+                    self.cell_position_edit.setText(params['position'])
+                
+                # 填充新内容
+                if 'content' in params and hasattr(self, 'cell_content_edit'):
+                    self.cell_content_edit.setText(params['content'])
+                    self.cell_content_edit.setFocus()
+                    
             else:
                 # 未知操作类型
                 QMessageBox.warning(self, "警告", f"未知操作类型: {operation}")
@@ -381,10 +453,51 @@ class StepOperationsMixin:
     
     def delete_step(self):
         """删除选中的步骤"""
-        current_row = self.steps_list.currentRow()
-        if current_row >= 0:
-            self.steps.pop(current_row)
+        try:
+            # 获取所有选中的行
+            selected_items = self.steps_list.selectedItems()
+            if not selected_items:
+                QMessageBox.information(self, "提示", "请先选择要删除的步骤！")
+                return
+                
+            # 确认删除
+            if len(selected_items) > 1:
+                confirm = QMessageBox.question(self, "确认删除", 
+                                            f"确定要删除选中的 {len(selected_items)} 个步骤吗？",
+                                            QMessageBox.Yes | QMessageBox.No)
+            else:
+                confirm = QMessageBox.question(self, "确认删除", 
+                                            "确定要删除选中的步骤吗？",
+                                            QMessageBox.Yes | QMessageBox.No)
+                
+            if confirm != QMessageBox.Yes:
+                return
+                
+            # 获取所有选中行的索引
+            selected_rows = [self.steps_list.row(item) for item in selected_items]
+            # 按照从大到小的顺序排序，以便从后往前删除，避免索引变化
+            selected_rows.sort(reverse=True)
+            
+            # 从后往前删除选中的步骤
+            for row in selected_rows:
+                if 0 <= row < len(self.steps):
+                    del self.steps[row]
+                    
+            # 更新步骤列表
             self.update_steps_list()
+            
+            # 提示删除成功
+            if len(selected_items) > 1:
+                QMessageBox.information(self, "成功", f"已删除 {len(selected_items)} 个步骤")
+            else:
+                QMessageBox.information(self, "成功", "已删除选中的步骤")
+                
+        except Exception as e:
+            import traceback
+            error_msg = traceback.format_exc()
+            print(f"删除步骤失败: {error_msg}")
+            QMessageBox.critical(self, "错误", f"删除步骤失败: {str(e)}")
+
     
     def clear_steps(self):
         """清空步骤列表"""

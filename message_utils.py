@@ -9,7 +9,7 @@
 
 def format_result_message(result):
     """
-    格式化执行结果消息，移除重复信息，统一显示格式
+    格式化执行结果消息，移除重复信息，统一显示格式，并提供更详细的错误信息
     
     Args:
         result: 包含step、success和message字段的结果字典

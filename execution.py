@@ -39,6 +39,26 @@ class ExecutionMixin:
             QMessageBox.warning(self, "警告", "请先添加要执行的操作步骤！")
             return
         
+        # 询问用户是否要选择特定工作表
+        select_worksheets_confirm = QMessageBox.question(
+            self, "工作表选择", 
+            "是否要选择特定的工作表进行操作？\n\n选择\"是\"将弹出工作表选择对话框，\n选择\"否\"将处理所有工作表。",
+            QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
+        )
+        
+        if select_worksheets_confirm == QMessageBox.Cancel:
+            return
+            
+        selected_worksheets = None
+        if select_worksheets_confirm == QMessageBox.Yes:
+            # 弹出工作表选择对话框
+            selected_worksheets = self.select_worksheets()
+            if selected_worksheets is None:  # 用户取消了选择
+                return
+            elif not any(selected_worksheets.values()):  # 没有选择任何工作表
+                QMessageBox.warning(self, "警告", "未选择任何工作表，请重新选择！")
+                return
+        
         # 获取输出目录
         output_dir = QFileDialog.getExistingDirectory(self, "选择输出目录")
         if not output_dir:
@@ -55,7 +75,7 @@ class ExecutionMixin:
         self.progress_dialog.setAutoReset(False)
         
         # 创建处理线程
-        self.processing_thread = ProcessingThread(self.processor, self.steps, self.file_paths)
+        self.processing_thread = ProcessingThread(self.processor, self.steps, self.file_paths, selected_worksheets)
         
         # 连接信号
         self.processing_thread.progress_updated.connect(self.update_progress)
@@ -80,6 +100,18 @@ class ExecutionMixin:
         
         self.progress_dialog.setValue(value)
     
+    def select_worksheets(self):
+        """弹出工作表选择对话框，让用户选择要操作的工作表"""
+        try:
+            from ui.worksheet_selector import WorksheetSelectorDialog
+            dialog = WorksheetSelectorDialog(self.file_paths, self)
+            if dialog.exec_():
+                return dialog.get_selected_worksheets()
+            return None  # 用户取消了选择
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"工作表选择失败: {str(e)}")
+            return None
+    
     def handle_operation_complete(self, success, message):
         """处理操作完成事件"""
         self.progress_dialog.close()
@@ -87,7 +119,10 @@ class ExecutionMixin:
         if success:
             QMessageBox.information(self, "完成", message)
         else:
-            QMessageBox.critical(self, "错误", message)
+            # 提供更详细的错误信息
+            error_title = "执行失败"
+            error_message = f"执行过程中发生错误:\n{message}\n\n请检查操作步骤和选择的工作表是否正确。"
+            QMessageBox.critical(self, error_title, error_message)
             
     def show_step_results(self, step_results):
         """显示步骤执行结果对话框，并询问用户是否生成Excel报告"""
@@ -139,12 +174,15 @@ class ExecutionMixin:
             step_item.setTextAlignment(Qt.AlignCenter)
             table.setItem(i, 0, step_item)
             
-            # 操作 - 显示中文名称
+            # 操作 - 显示完整的操作描述（包括位置信息等）
             operation_name = result['operation']
-            # 如果操作名在映射表中，则使用中文名称
-            if operation_name in operation_name_map:
-                operation_name = operation_name_map[operation_name]
-            operation_item = QTableWidgetItem(operation_name)
+            operation_params = result.get('params', {})
+            
+            # 创建一个临时的StepItem对象来获取完整描述
+            temp_step = StepItem(operation_name, operation_params)
+            operation_desc = str(temp_step)
+            
+            operation_item = QTableWidgetItem(operation_desc)
             table.setItem(i, 1, operation_item)
             
             # 结果
@@ -188,10 +226,20 @@ class ExecutionMixin:
         """生成Excel报告"""
         try:
             from report import generate_report
-            report_path = generate_report(step_results, self.processor.output_dir)
+            result = generate_report(step_results, self.processor.output_dir)
             
-            # 显示成功消息
-            QMessageBox.information(self, "报告生成成功", f"执行报告已生成: {report_path}")
+            # 处理可能返回的多个报告路径
+            if isinstance(result, list):
+                # 多个报告路径
+                report_paths = result
+                report_paths_str = "\n".join(report_paths)
+                # 显示成功消息
+                QMessageBox.information(self, "报告生成成功", f"已为每个文件生成单独的执行报告:\n{report_paths_str}")
+            else:
+                # 单个报告路径
+                report_path = result
+                # 显示成功消息
+                QMessageBox.information(self, "报告生成成功", f"执行报告已生成: {report_path}")
             
             # 如果对话框存在，关闭它
             if dialog:

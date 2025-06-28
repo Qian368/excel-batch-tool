@@ -35,7 +35,7 @@ class BaseWindow(QMainWindow, ExecutionMixin):
     def init_ui(self):
         """初始化用户界面"""
         self.setWindowTitle("Excel批量处理工具")
-        self.setGeometry(100, 100, 1000, 800)
+        self.setGeometry(100, 100, 1150, 800)
         # 设置窗口图标（使用相对路径，基于当前文件位置）
         icon_path = os.path.join(os.path.dirname(__file__), "image", "icon.ico")
         self.setWindowIcon(QIcon(icon_path))
@@ -79,14 +79,18 @@ class BaseWindow(QMainWindow, ExecutionMixin):
         file_btn_layout = QHBoxLayout()
         self.add_files_btn = QPushButton("添加文件")
         self.add_folder_btn = QPushButton("添加文件夹")
+        self.remove_files_btn = QPushButton("移除选中")
         self.clear_files_btn = QPushButton("清空列表")
         
         file_btn_layout.addWidget(self.add_files_btn)
         file_btn_layout.addWidget(self.add_folder_btn)
+        file_btn_layout.addWidget(self.remove_files_btn)
         file_btn_layout.addWidget(self.clear_files_btn)
         
-        # 文件列表
+        # 文件列表 - 启用多选功能
         self.file_list = QListWidget()
+        # 设置为扩展选择模式，支持Ctrl和Shift键多选
+        self.file_list.setSelectionMode(QListWidget.ExtendedSelection)
         
         file_layout.addLayout(file_btn_layout)
         file_layout.addWidget(self.file_list)
@@ -99,8 +103,10 @@ class BaseWindow(QMainWindow, ExecutionMixin):
         steps_group = QGroupBox("操作步骤列表")
         steps_layout = QVBoxLayout()
         
-        # 步骤列表
+        # 步骤列表 - 启用多选功能
         self.steps_list = QListWidget()
+        # 设置为扩展选择模式，支持Ctrl和Shift键多选
+        self.steps_list.setSelectionMode(QListWidget.ExtendedSelection)
         
         # 步骤操作按钮 - 第一行
         steps_btn_layout1 = QHBoxLayout()

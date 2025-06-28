@@ -18,9 +18,10 @@ from ui.file_operations import FileOperationsMixin
 from ui.step_operations import StepOperationsMixin
 from ui.worksheet_operations import WorksheetOperationsMixin
 from ui.row_col_operations import RowColOperationsMixin
+from ui.cell_format_operations import CellFormatOperationsMixin
 
 class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
-                WorksheetOperationsMixin, RowColOperationsMixin):
+                WorksheetOperationsMixin, RowColOperationsMixin, CellFormatOperationsMixin):
     """主窗口类，整合所有功能模块"""
     
     def __init__(self):
@@ -33,12 +34,22 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
         self.merge_range_edit.installEventFilter(self)
         self.create_ws_name_edit.installEventFilter(self)
         self.delete_ws_name_edit.installEventFilter(self)
+        # 为单元格格式操作相关控件安装事件过滤器
+        if hasattr(self, 'font_range_edit'):
+            self.font_range_edit.installEventFilter(self)
+        if hasattr(self, 'fill_range_edit'):
+            self.fill_range_edit.installEventFilter(self)
+        if hasattr(self, 'border_range_edit'):
+            self.border_range_edit.installEventFilter(self)
+        if hasattr(self, 'cell_position_edit'):
+            self.cell_position_edit.installEventFilter(self)
     
     def setup_connections(self):
         """设置信号连接"""
         # 文件操作按钮连接
         self.add_files_btn.clicked.connect(self.add_files)
         self.add_folder_btn.clicked.connect(self.add_folder)
+        self.remove_files_btn.clicked.connect(self.remove_selected_files)
         self.clear_files_btn.clicked.connect(self.clear_files)
         
         # 步骤操作按钮连接
@@ -65,10 +76,15 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
         
         # 行列操作选项卡
         self.setup_row_col_tab()
+        
+        # 单元格格式操作选项卡
+        self.setup_cell_format_tabs()
 
         # 连接删除行列单选按钮的信号，用于控制合并单元格处理选项的可见性
         self.delete_rows_radio.toggled.connect(self.toggle_delete_merge_options)
         self.delete_cols_radio.toggled.connect(self.toggle_delete_merge_options)
+        self.delete_hidden_rows_radio.toggled.connect(self.toggle_delete_merge_options)
+        self.delete_hidden_cols_radio.toggled.connect(self.toggle_delete_merge_options)
         # 连接其他行列操作单选按钮的信号，用于隐藏合并单元格处理选项
         self.insert_rows_radio.toggled.connect(self.toggle_delete_merge_options)
         self.insert_cols_radio.toggled.connect(self.toggle_delete_merge_options)
@@ -76,6 +92,18 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
         self.hide_cols_radio.toggled.connect(self.toggle_delete_merge_options)
         self.unhide_rows_radio.toggled.connect(self.toggle_delete_merge_options)
         self.unhide_cols_radio.toggled.connect(self.toggle_delete_merge_options)
+        
+        # 连接所有行列操作单选按钮的信号，用于控制位置输入框的启用/禁用状态
+        self.insert_rows_radio.toggled.connect(self.toggle_position_input)
+        self.insert_cols_radio.toggled.connect(self.toggle_position_input)
+        self.delete_rows_radio.toggled.connect(self.toggle_position_input)
+        self.delete_cols_radio.toggled.connect(self.toggle_position_input)
+        self.delete_hidden_rows_radio.toggled.connect(self.toggle_position_input)
+        self.delete_hidden_cols_radio.toggled.connect(self.toggle_position_input)
+        self.hide_rows_radio.toggled.connect(self.toggle_position_input)
+        self.hide_cols_radio.toggled.connect(self.toggle_position_input)
+        self.unhide_rows_radio.toggled.connect(self.toggle_position_input)
+        self.unhide_cols_radio.toggled.connect(self.toggle_position_input)
     
     def setup_formula_tab(self):
         """设置公式转值选项卡"""
@@ -246,15 +274,17 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
         row_col_layout = QVBoxLayout(row_col_tab)
         
         # 操作类型选择组
-        operation_group = QGroupBox("操作类型")
+        operation_group = QGroupBox("操作类型（注意插入和删除行列会影响后续步骤的行列编号）")
         operation_layout = QGridLayout()
         
         self.operation_group = QButtonGroup()
-        self.insert_rows_radio = QRadioButton("插入行")
+        self.insert_rows_radio = QRadioButton("插入行（建议靠后处理）")
         self.insert_rows_radio.setChecked(True)
-        self.insert_cols_radio = QRadioButton("插入列")
-        self.delete_rows_radio = QRadioButton("删除行")
-        self.delete_cols_radio = QRadioButton("删除列")
+        self.insert_cols_radio = QRadioButton("插入列（建议靠后处理）")
+        self.delete_rows_radio = QRadioButton("删除行（建议靠后处理）")
+        self.delete_cols_radio = QRadioButton("删除列（建议靠后处理）")
+        self.delete_hidden_rows_radio = QRadioButton("删除所有隐藏行（建议靠后处理）")
+        self.delete_hidden_cols_radio = QRadioButton("删除所有隐藏列（建议靠后处理）")
         self.hide_rows_radio = QRadioButton("隐藏行")
         self.hide_cols_radio = QRadioButton("隐藏列")
         self.unhide_rows_radio = QRadioButton("取消隐藏行")
@@ -265,6 +295,8 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
         self.operation_group.addButton(self.insert_cols_radio)
         self.operation_group.addButton(self.delete_rows_radio)
         self.operation_group.addButton(self.delete_cols_radio)
+        self.operation_group.addButton(self.delete_hidden_rows_radio)
+        self.operation_group.addButton(self.delete_hidden_cols_radio)
         self.operation_group.addButton(self.hide_rows_radio)
         self.operation_group.addButton(self.hide_cols_radio)
         self.operation_group.addButton(self.unhide_rows_radio)
@@ -275,10 +307,13 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
         operation_layout.addWidget(self.insert_cols_radio, 0, 1)
         operation_layout.addWidget(self.delete_rows_radio, 1, 0)
         operation_layout.addWidget(self.delete_cols_radio, 1, 1)
-        operation_layout.addWidget(self.hide_rows_radio, 2, 0)
-        operation_layout.addWidget(self.hide_cols_radio, 2, 1)
-        operation_layout.addWidget(self.unhide_rows_radio, 3, 0)
-        operation_layout.addWidget(self.unhide_cols_radio, 3, 1)
+        operation_layout.addWidget(self.delete_hidden_rows_radio, 2, 0)
+        operation_layout.addWidget(self.delete_hidden_cols_radio, 2, 1)
+        operation_layout.addWidget(self.hide_rows_radio, 3, 0)
+        operation_layout.addWidget(self.hide_cols_radio, 3, 1)
+        operation_layout.addWidget(self.unhide_rows_radio, 4, 0)
+        operation_layout.addWidget(self.unhide_cols_radio, 4, 1)
+
         
         operation_group.setLayout(operation_layout)
         
@@ -352,17 +387,36 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
         # 使用 self.sender() 获取触发信号的对象，检查它是否是删除按钮且被选中
         sender = self.sender()
         show = False
-        if sender in [self.delete_rows_radio, self.delete_cols_radio] and checked:
+        delete_operations = [self.delete_rows_radio, self.delete_cols_radio, 
+                           self.delete_hidden_rows_radio, self.delete_hidden_cols_radio]
+        
+        if sender in delete_operations and checked:
             show = True
-        elif sender not in [self.delete_rows_radio, self.delete_cols_radio] and checked:
+        elif sender not in delete_operations and checked:
              # 如果是其他按钮被选中，则隐藏
             show = False
         else:
             # 如果是删除按钮被取消选中，也需要重新判断是否还有其他删除按钮被选中
-            show = self.delete_rows_radio.isChecked() or self.delete_cols_radio.isChecked()
+            show = any(radio.isChecked() for radio in delete_operations)
             
         self.delete_merge_group.setVisible(show)
 
+    def toggle_position_input(self, checked):
+        """切换位置输入框的启用/禁用状态"""
+        # 只有当触发信号的按钮被选中时，才判断是否启用位置输入框
+        sender = self.sender()
+        
+        # 删除隐藏行列操作不需要位置输入
+        no_position_operations = [self.delete_hidden_rows_radio, self.delete_hidden_cols_radio]
+        
+        if sender in no_position_operations and checked:
+            # 如果选中的是删除隐藏行列操作，禁用位置输入框
+            self.position_edit.setEnabled(False)
+            self.position_edit.setPlaceholderText("此操作不需要位置参数")
+        elif checked:
+            # 如果选中的是其他操作，启用位置输入框
+            self.position_edit.setEnabled(True)
+            self.position_edit.setPlaceholderText("")
      
     def add_unmerge_step(self):
         """添加拆分合并单元格步骤"""
@@ -485,6 +539,18 @@ class MainWindow(BaseWindow, FileOperationsMixin, StepOperationsMixin,
                 return True
             elif obj == self.delete_ws_name_edit:
                 self.add_delete_worksheet_step()
+                return True
+            elif hasattr(self, 'font_range_edit') and obj == self.font_range_edit:
+                self.add_font_color_step()
+                return True
+            elif hasattr(self, 'fill_range_edit') and obj == self.fill_range_edit:
+                self.add_fill_color_step()
+                return True
+            elif hasattr(self, 'border_range_edit') and obj == self.border_range_edit:
+                self.add_border_step()
+                return True
+            elif hasattr(self, 'cell_position_edit') and obj == self.cell_position_edit:
+                self.add_cell_content_step()
                 return True
         return super().eventFilter(obj, event)
 

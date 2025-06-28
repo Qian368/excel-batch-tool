@@ -21,11 +21,12 @@ class ProcessingThread(QThread):
     operation_complete = pyqtSignal(bool, str)
     step_results_updated = pyqtSignal(list)  # 新增：步骤结果信号
     
-    def __init__(self, processor, steps, file_paths):
+    def __init__(self, processor, steps, file_paths, selected_worksheets=None):
         super().__init__()
         self.processor = processor
         self.steps = steps
         self.file_paths = file_paths
+        self.selected_worksheets = selected_worksheets or {}  # 用户选择的工作表
         # self.processor.output_dir = None  # 初始化输出目录属性
         self.step_results = []  # 新增：用于记录每个步骤的执行结果
     
@@ -35,7 +36,19 @@ class ProcessingThread(QThread):
             # 加载工作簿（会自动创建临时文件）
             self.processor.load_workbooks(self.file_paths)
             self.progress_updated.emit(20)
+            
+            # 如果用户选择了特定的工作表，将这些信息传递给处理器
+            if self.selected_worksheets:
+                print(f"使用用户选择的工作表: {self.selected_worksheets}")
+                self.processor.set_selected_worksheets(self.selected_worksheets)
+            else:
+                print("未选择特定工作表，将处理所有工作表")
+                # 清空处理器中的工作表选择，确保处理所有工作表
+                self.processor.set_selected_worksheets({})
 
+            # 直接使用原始步骤，不进行坐标转换
+            # 用户希望后续步骤基于原始坐标而不是转换后的坐标
+            
             # 执行每个步骤
             total_steps = len(self.steps)
             for i, step in enumerate(self.steps, 1):
@@ -54,6 +67,12 @@ class ProcessingThread(QThread):
                         # 如果params中还包含params字段，则使用它作为实际参数
                         if 'params' in params:
                             params = params.get('params', {})
+                    
+                    # 记录详细的操作信息，用于错误追踪
+                    operation_info = f"执行操作: {operation_name}"
+                    if self.selected_worksheets:
+                        operation_info += f" (使用选定的工作表)"
+                    print(operation_info)
                     
                     # 根据操作类型执行相应的处理
                     if operation_name == 'convert_formulas_to_values':
@@ -274,6 +293,264 @@ class ProcessingThread(QThread):
                                 'message': step_msg
                             })
                             continue
+                    # 单元格格式操作
+                    elif operation_name == 'change_font_color' or operation_name.startswith('修改字体颜色'):
+                        try:
+                            color = params.get('color', '黑色')
+                            range_mode = params.get('range_mode', 'specific')
+                            range_str = params.get('range_str', None) if range_mode == 'specific' else None
+                            
+                            # 确保在specific模式下有range_str参数
+                            if range_mode == 'specific' and not range_str:
+                                step_success = False
+                                step_msg = f"执行失败：未指定单元格范围"
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            
+                            # 导入cell_format_module模块
+                            from cell_format_module import change_font_color
+                            
+                            # 调用模块中的函数而不是processor的方法
+                            result = change_font_color(self.processor, self.file_paths, color, range_mode, range_str)
+                            if not result['success']:
+                                step_success = False
+                                # 确保错误信息格式统一
+                                error_msg = result['message']
+                                if not error_msg.startswith("执行失败："):
+                                    error_msg = f"执行失败：{error_msg}"
+                                step_msg = error_msg
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            else:
+                                step_msg = f"步骤{i}: 修改字体颜色（颜色：{color}，单元格：{range_str if range_str else '整个工作表'}） 执行成功"
+                        except Exception as e:
+                            step_success = False
+                            step_msg = f"执行失败：{str(e)}"
+                            self.step_results.append({
+                                'step': i,
+                                'operation': step.operation,
+                                'params': step.params,
+                                'success': step_success,
+                                'message': step_msg
+                            })
+                            continue
+                    elif operation_name == 'change_fill_color' or operation_name.startswith('修改填充颜色'):
+                        try:
+                            color = params.get('color', '白色')
+                            range_mode = params.get('range_mode', 'specific')
+                            range_str = params.get('range_str', None) if range_mode == 'specific' else None
+                            
+                            # 确保在specific模式下有range_str参数
+                            if range_mode == 'specific' and not range_str:
+                                step_success = False
+                                step_msg = f"执行失败：未指定单元格范围"
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            
+                            # 导入cell_format_module模块
+                            from cell_format_module import change_fill_color
+                            
+                            # 调用模块中的函数而不是processor的方法
+                            result = change_fill_color(self.processor, self.file_paths, color, range_mode, range_str)
+                            if not result['success']:
+                                step_success = False
+                                # 确保错误信息格式统一
+                                error_msg = result['message']
+                                if not error_msg.startswith("执行失败："):
+                                    error_msg = f"执行失败：{error_msg}"
+                                step_msg = error_msg
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            else:
+                                step_msg = f"步骤{i}: 修改填充颜色（颜色：{color}，单元格：{range_str if range_str else '整个工作表'}） 执行成功"
+                        except Exception as e:
+                            step_success = False
+                            step_msg = f"执行失败：{str(e)}"
+                            self.step_results.append({
+                                'step': i,
+                                'operation': step.operation,
+                                'params': step.params,
+                                'success': step_success,
+                                'message': step_msg
+                            })
+                            continue
+                    # 边框操作
+                    elif operation_name == 'add_border' or operation_name.startswith('添加边框'):
+                        try:
+                            range_str = params.get('range_str', '')
+                            border_style = params.get('border_style', 'thin')
+                            
+                            if not range_str:
+                                step_success = False
+                                step_msg = f"执行失败：未指定单元格范围"
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            
+                            # 导入cell_format_module模块
+                            from cell_format_module import add_border
+                            
+                            # 调用模块中的函数
+                            result = add_border(self.processor, self.file_paths, range_str, border_style)
+                            if not result['success']:
+                                step_success = False
+                                # 确保错误信息格式统一
+                                error_msg = result['message']
+                                if not error_msg.startswith("执行失败："):
+                                    error_msg = f"执行失败：{error_msg}"
+                                step_msg = error_msg
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            else:
+                                step_msg = f"步骤{i}: 添加边框（单元格：{range_str}） 执行成功"
+                        except Exception as e:
+                            step_success = False
+                            step_msg = f"执行失败：{str(e)}"
+                            self.step_results.append({
+                                'step': i,
+                                'operation': step.operation,
+                                'params': step.params,
+                                'success': step_success,
+                                'message': step_msg
+                            })
+                            continue
+                    
+                    elif operation_name == 'remove_border' or operation_name.startswith('移除边框'):
+                        try:
+                            range_str = params.get('range_str', '')
+                            
+                            if not range_str:
+                                step_success = False
+                                step_msg = f"执行失败：未指定单元格范围"
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            
+                            # 导入cell_format_module模块
+                            from cell_format_module import remove_border
+                            
+                            # 调用模块中的函数
+                            result = remove_border(self.processor, self.file_paths, range_str)
+                            if not result['success']:
+                                step_success = False
+                                # 确保错误信息格式统一
+                                error_msg = result['message']
+                                if not error_msg.startswith("执行失败："):
+                                    error_msg = f"执行失败：{error_msg}"
+                                step_msg = error_msg
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            else:
+                                step_msg = f"步骤{i}: 移除边框（单元格：{range_str}） 执行成功"
+                        except Exception as e:
+                            step_success = False
+                            step_msg = f"执行失败：{str(e)}"
+                            self.step_results.append({
+                                'step': i,
+                                'operation': step.operation,
+                                'params': step.params,
+                                'success': step_success,
+                                'message': step_msg
+                            })
+                            continue
+                    
+                    elif operation_name == 'modify_cell_content' or operation_name.startswith('修改单元格内容'):
+                        try:
+                            position = params.get('position', '')
+                            content = params.get('content', '')
+                            
+                            if not position:
+                                step_success = False
+                                step_msg = f"执行失败：未指定单元格位置"
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            
+                            # 导入cell_format_module模块
+                            from cell_format_module import modify_cell_content
+                            
+                            # 调用模块中的函数
+                            result = modify_cell_content(self.processor, self.file_paths, position, content)
+                            if not result['success']:
+                                step_success = False
+                                # 确保错误信息格式统一
+                                error_msg = result['message']
+                                if not error_msg.startswith("执行失败："):
+                                    error_msg = f"执行失败：{error_msg}"
+                                step_msg = error_msg
+                                self.step_results.append({
+                                    'step': i,
+                                    'operation': step.operation,
+                                    'params': step.params,
+                                    'success': step_success,
+                                    'message': step_msg
+                                })
+                                continue
+                            else:
+                                step_msg = f"步骤{i}: 修改单元格内容（单元格：{position}，内容：{content}） 执行成功"
+                        except Exception as e:
+                            step_success = False
+                            step_msg = f"执行失败：{str(e)}"
+                            self.step_results.append({
+                                'step': i,
+                                'operation': step.operation,
+                                'params': step.params,
+                                'success': step_success,
+                                'message': step_msg
+                            })
+                            continue
+                    
                     # 已在前面的条件分支中处理了merge_cells和以'合并单元格'开头的操作
                     
                     # 工作表操作
@@ -353,83 +630,125 @@ class ProcessingThread(QThread):
                             raise ValueError(step_msg)
                     
                     # 行操作
-                    elif operation_name in ['insert_rows', 'delete_rows', 'hide_rows', 'unhide_rows']:
-                        positions = parse_range_string(params.get('position', '1'))
-                        sheet_indexes = params.get('sheet_indexes', [0])
-                        
-                        # 获取合并单元格处理模式，仅在删除行时需要
-                        merge_mode = None
-                        if operation_name == 'delete_rows':
+                    elif operation_name in ['insert_rows', 'delete_rows', 'hide_rows', 'unhide_rows', 'delete_hidden_rows']:
+                        # 删除隐藏行操作不需要位置参数
+                        if operation_name == 'delete_hidden_rows':
+                            sheet_indexes = params.get('sheet_indexes', [0])
                             merge_mode = params.get('merge_mode', 'ignore')
                             # 确保merge_mode是有效的值
                             if merge_mode not in ['ignore', 'unmerge_only', 'unmerge_keep_value']:
                                 merge_mode = 'ignore'
-                        
-                        for pos in positions:
-                            if isinstance(pos, tuple):
-                                start, end = pos
-                                count = int(end) - int(start) + 1
-                                # 调用相应的处理方法
-                                if operation_name == 'delete_rows':
-                                    self.processor.delete_rows(
-                                        self.file_paths, sheet_indexes, int(start), count, merge_mode=merge_mode
-                                    )
+                            delete_results = self.processor.delete_hidden_rows(
+                                self.file_paths, sheet_indexes, merge_mode=merge_mode
+                            )
+                            # 记录删除详情到步骤结果
+                            step_msg = f"删除隐藏行完成。详情：{json.dumps(delete_results, ensure_ascii=False, indent=2)}"
+                        else:
+                            positions = parse_range_string(params.get('position', '1'))
+                            sheet_indexes = params.get('sheet_indexes', [0])
+                            
+                            # 获取合并单元格处理模式，仅在删除行时需要
+                            merge_mode = None
+                            if operation_name == 'delete_rows':
+                                merge_mode = params.get('merge_mode', 'ignore')
+                                # 确保merge_mode是有效的值
+                                if merge_mode not in ['ignore', 'unmerge_only', 'unmerge_keep_value']:
+                                    merge_mode = 'ignore'
+                            
+                            for pos in positions:
+                                if isinstance(pos, tuple):
+                                    start, end = pos
+                                    count = int(end) - int(start) + 1
+                                    # 调用相应的处理方法
+                                    if operation_name == 'delete_rows':
+                                        self.processor.delete_rows(
+                                            self.file_paths, sheet_indexes, int(start), count, merge_mode=merge_mode
+                                        )
+                                    elif operation_name == 'insert_rows':
+                                        self.processor.insert_rows(
+                                            self.file_paths, sheet_indexes, int(start), count
+                                        )
+                                    else:
+                                        getattr(self.processor, operation_name)(
+                                            self.file_paths, sheet_indexes, int(start), count
+                                        )
                                 else:
-                                    getattr(self.processor, operation_name)(
-                                        self.file_paths, sheet_indexes, int(start), count
-                                    )
-                            else:
-                                # 单个位置
-                                if operation_name == 'delete_rows':
-                                    self.processor.delete_rows(
-                                        self.file_paths, sheet_indexes, int(pos), 1, merge_mode=merge_mode
-                                    )
-                                else:
-                                    getattr(self.processor, operation_name)(
-                                        self.file_paths, sheet_indexes, int(pos), 1
-                                    )
+                                    # 单个位置
+                                    if operation_name == 'delete_rows':
+                                        self.processor.delete_rows(
+                                            self.file_paths, sheet_indexes, int(pos), 1, merge_mode=merge_mode
+                                        )
+                                    elif operation_name == 'insert_rows':
+                                        self.processor.insert_rows(
+                                            self.file_paths, sheet_indexes, int(pos), 1
+                                        )
+                                    else:
+                                        getattr(self.processor, operation_name)(
+                                            self.file_paths, sheet_indexes, int(pos), 1
+                                        )
                     
                     # 列操作
-                    elif operation_name in ['insert_columns', 'delete_columns', 'hide_columns', 'unhide_columns']:
-                        positions = parse_range_string(params.get('position', 'A'))
-                        sheet_indexes = params.get('sheet_indexes', [0])
-                        
-                        # 获取合并单元格处理模式，仅在删除列时需要
-                        merge_mode = None
-                        if operation_name == 'delete_columns':
+                    elif operation_name in ['insert_columns', 'delete_columns', 'hide_columns', 'unhide_columns', 'delete_hidden_columns']:
+                        # 删除隐藏列操作不需要位置参数
+                        if operation_name == 'delete_hidden_columns':
+                            sheet_indexes = params.get('sheet_indexes', [0])
                             merge_mode = params.get('merge_mode', 'ignore')
                             # 确保merge_mode是有效的值
                             if merge_mode not in ['ignore', 'unmerge_only', 'unmerge_keep_value']:
                                 merge_mode = 'ignore'
-                        
-                        for pos in positions:
-                            if isinstance(pos, tuple):
-                                start, end = pos
-                                start_idx = ord(start.upper()) - ord('A') + 1
-                                end_idx = ord(end.upper()) - ord('A') + 1
-                                count = end_idx - start_idx + 1
-                                
-                                # 调用相应的处理方法
-                                if operation_name == 'delete_columns':
-                                    self.processor.delete_columns(
-                                        self.file_paths, sheet_indexes, start_idx, count, merge_mode=merge_mode
-                                    )
+                            delete_results = self.processor.delete_hidden_columns(
+                                self.file_paths, sheet_indexes, merge_mode=merge_mode
+                            )
+                            # 记录删除详情到步骤结果
+                            step_msg = f"删除隐藏列完成。详情：{json.dumps(delete_results, ensure_ascii=False, indent=2)}"
+                        else:
+                            positions = parse_range_string(params.get('position', 'A'))
+                            sheet_indexes = params.get('sheet_indexes', [0])
+                            
+                            # 获取合并单元格处理模式，仅在删除列时需要
+                            merge_mode = None
+                            if operation_name == 'delete_columns':
+                                merge_mode = params.get('merge_mode', 'ignore')
+                                # 确保merge_mode是有效的值
+                                if merge_mode not in ['ignore', 'unmerge_only', 'unmerge_keep_value']:
+                                    merge_mode = 'ignore'
+                            
+                            for pos in positions:
+                                if isinstance(pos, tuple):
+                                    start, end = pos
+                                    start_idx = ord(start.upper()) - ord('A') + 1
+                                    end_idx = ord(end.upper()) - ord('A') + 1
+                                    count = end_idx - start_idx + 1
+                                    
+                                    # 调用相应的处理方法
+                                    if operation_name == 'delete_columns':
+                                        self.processor.delete_columns(
+                                            self.file_paths, sheet_indexes, start_idx, count, merge_mode=merge_mode
+                                        )
+                                    elif operation_name == 'insert_columns':
+                                        self.processor.insert_columns(
+                                            self.file_paths, sheet_indexes, start_idx, count
+                                        )
+                                    else:
+                                        getattr(self.processor, operation_name)(
+                                            self.file_paths, sheet_indexes, start_idx, count
+                                        )
                                 else:
-                                    getattr(self.processor, operation_name)(
-                                        self.file_paths, sheet_indexes, start_idx, count
-                                    )
-                            else:
-                                # 单个位置
-                                col_idx = ord(pos.upper()) - ord('A') + 1
-                                
-                                if operation_name == 'delete_columns':
-                                    self.processor.delete_columns(
-                                        self.file_paths, sheet_indexes, col_idx, 1, merge_mode=merge_mode
-                                    )
-                                else:
-                                    getattr(self.processor, operation_name)(
-                                        self.file_paths, sheet_indexes, col_idx, 1
-                                    )
+                                    # 单个位置
+                                    col_idx = ord(pos.upper()) - ord('A') + 1
+                                    
+                                    if operation_name == 'delete_columns':
+                                        self.processor.delete_columns(
+                                            self.file_paths, sheet_indexes, col_idx, 1, merge_mode=merge_mode
+                                        )
+                                    elif operation_name == 'insert_columns':
+                                        self.processor.insert_columns(
+                                            self.file_paths, sheet_indexes, col_idx, 1
+                                        )
+                                    else:
+                                        getattr(self.processor, operation_name)(
+                                            self.file_paths, sheet_indexes, col_idx, 1
+                                        )
                     else:
                         # 未知操作类型
                         raise ValueError(f"未知的操作类型: {operation_name}")
@@ -456,6 +775,7 @@ class ProcessingThread(QThread):
                     else:
                         # 其他错误保持原样
                         step_msg = f"步骤{i}: {str(step)} 执行失败: {error_msg}"
+                # 添加步骤结果
                 self.step_results.append({
                     'step': i,
                     'operation': step.operation,

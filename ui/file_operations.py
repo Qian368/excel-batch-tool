@@ -39,6 +39,21 @@ class FileOperationsMixin:
         self.file_paths.clear()
         self.update_file_list()
     
+    def remove_selected_files(self):
+        """从列表中移除选中的文件"""
+        selected_items = self.file_list.selectedItems()
+        if not selected_items:
+            return
+            
+        # 获取所有选中项的文本（文件路径）
+        selected_paths = [item.text() for item in selected_items]
+        
+        # 从文件路径列表中移除选中的文件
+        self.file_paths = [path for path in self.file_paths if path not in selected_paths]
+        
+        # 更新文件列表显示
+        self.update_file_list()
+    
     def update_file_list(self):
         """更新文件列表显示"""
         self.file_list.clear()
