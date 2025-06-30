@@ -6,7 +6,7 @@ __pycache__/
 # 打包文件
 build/
 dist/
-.trae/rules/
+.trae/
 *.egg-info/
 *.egg
 
